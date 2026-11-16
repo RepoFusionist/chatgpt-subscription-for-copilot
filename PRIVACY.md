@@ -1,5 +1,7 @@
 # Privacy Notice
 
+This local fork adds a user-configured Mihomo proxy. When a subscription is imported or refreshed, its URL is sent to the subscription provider through the selected node if the proxy is enabled; subscription updates fall back to direct traffic on network failure. When the proxy is disabled, URL import uses a direct connection. System-wide TUN routing can still affect direct traffic. The URL and downloaded configuration are stored in VS Code SecretStorage. A generated configuration containing node credentials is written briefly to local extension storage while the core starts. When requested, an exit-IP check connects through the selected node to `https://api.ipify.org`. When enabled, non-login OpenAI requests use the selected proxy, which can observe network metadata. Browser sign-in, initial authorization-code exchange and login-time identity verification keep their existing network route.
+
 **ChatGPT Subscription for Copilot** is an unofficial extension published under the `lab530` publisher. This notice describes the extension's own behavior; it does not replace OpenAI, GitHub, Microsoft, or your organization's policies. Configuring a publisher does not mean a Marketplace release has occurred.
 
 ## Data sent to OpenAI

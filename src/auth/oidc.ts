@@ -5,16 +5,16 @@ import type { HttpClient } from '../http';
 export interface Identity { issuer: string; subject: string; email?: string }
 export class OpenId {
   constructor(private readonly http: HttpClient) {}
-  async metadata(signal: AbortSignal): Promise<{ jwks: string; revoke: string }> {
-    const config = record(await this.http.json(DISCOVERY, signal));
+  async metadata(signal: AbortSignal, login = false): Promise<{ jwks: string; revoke: string }> {
+    const config = record(await this.http.json(DISCOVERY, signal, {}, login));
     if (config?.issuer !== ISSUER || config.authorization_endpoint !== AUTHORIZE || config.token_endpoint !== TOKEN) {
       throw new AppError('OpenAI authentication metadata does not match the fixed endpoints.', 'auth');
     }
     return { jwks: this.http.trustMetadataUrl(config.jwks_uri), revoke: this.http.trustMetadataUrl(config.revocation_endpoint) };
   }
-  async verify(idToken: string, clientId: string, signal: AbortSignal, expected: { nonce?: string; subject?: string } = {}): Promise<Identity> {
-    const metadata = await this.metadata(signal);
-    const raw = record(await this.http.json(metadata.jwks, signal));
+  async verify(idToken: string, clientId: string, signal: AbortSignal, expected: { nonce?: string; subject?: string } = {}, login = false): Promise<Identity> {
+    const metadata = await this.metadata(signal, login);
+    const raw = record(await this.http.json(metadata.jwks, signal, {}, login));
     if (!raw || !Array.isArray(raw.keys) || raw.keys.length > 100) throw new AppError('Invalid OpenAI JWKS.', 'auth');
     try {
       const jwks = createLocalJWKSet(raw as unknown as JSONWebKeySet);

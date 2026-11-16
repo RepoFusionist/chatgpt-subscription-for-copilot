@@ -7,12 +7,15 @@ import { HttpClient } from './http';
 import { ChatGPTProvider, VENDOR } from './provider';
 import { refreshNativePicker } from './modelPicker';
 import { cancellation, localStorageDirectory } from './vscodeAdapter';
+import { MihomoManager } from './mihomo';
 
 export function activate(context: vscode.ExtensionContext): void {
   const storageDirectory = localStorageDirectory(context.globalStorageUri, vscode.env.uiKind);
   const log = vscode.window.createOutputChannel('ChatGPT Subscription', { log: true });
   const lifetime = new AbortController();
   const http = new HttpClient();
+  const mihomo = new MihomoManager(context, http);
+  context.subscriptions.push(mihomo);
   const accounts = new AccountManager(new LockedAccountStore(context.secrets, storageDirectory), new OAuthClient(http));
   context.subscriptions.push(log, accounts, { dispose: () => lifetime.abort() });
 
@@ -21,6 +24,45 @@ export function activate(context: vscode.ExtensionContext): void {
     if (safe.kind !== 'cancelled') { log.warn(`${safe.kind}: ${safe.message}`); void vscode.window.showErrorMessage(safe.message); }
   };
   const guarded = (action: () => PromiseLike<unknown>) => async () => { try { await action(); } catch (error) { report(error); } };
+  void mihomo.initialize().catch(report);
+  const proxyMenu = async () => {
+    const choices = [
+      { label: '$(file) 导入本地 Clash YAML', action: 'file' },
+      { label: mihomo.isEnabled() ? '$(link) 通过插件代理导入 Clash 订阅' : '$(link) 导入 Clash 订阅（直连）', action: 'import' },
+      { label: '$(refresh) 更新订阅', action: 'refresh' },
+      { label: mihomo.isEnabled() ? '$(circle-slash) 停用模型代理' : '$(plug) 启用模型代理', action: 'toggle' },
+      { label: '$(list-selection) 选择代理节点', action: 'select' },
+      { label: '$(globe) 查询代理出口 IP', action: 'ip' }
+    ];
+    const selected = await vscode.window.showQuickPick(choices, { title: 'ChatGPT 插件代理', placeHolder: '除登录流程外的插件外部请求使用代理' });
+    if (!selected) return;
+    if (selected.action === 'file') {
+      const files = await vscode.window.showOpenDialog({ title: '选择本地 Clash YAML 配置', canSelectMany: false, filters: { 'Clash YAML': ['yaml', 'yml'] } });
+      if (!files?.[0]) return;
+      const bytes = await vscode.workspace.fs.readFile(files[0]);
+      if (bytes.byteLength > 4 * 1024 * 1024) throw new Error('Clash YAML 文件超过大小限制。');
+      const count = await mihomo.importFile(new TextDecoder().decode(bytes));
+      void vscode.window.showInformationMessage(`已导入 ${count} 个节点。可在菜单中启用代理并选择节点。`);
+    } else if (selected.action === 'import') {
+      const url = await vscode.window.showInputBox({ title: '导入 Clash HTTPS 订阅', prompt: mihomo.isEnabled() ? '通过插件代理下载 Clash YAML 订阅' : '直连下载订阅；导入后可启用插件代理', password: true, ignoreFocusOut: true });
+      if (!url) return;
+      const result = await mihomo.setSubscription(url);
+      void vscode.window.showInformationMessage(`已导入 ${result.count} 个节点。选择“启用模型代理”开始使用。`);
+    } else if (selected.action === 'refresh') {
+      const result = await mihomo.refreshSubscription();
+      if (result.directFallback) void vscode.window.showWarningMessage(`代理更新订阅失败，已使用直连更新 ${result.count} 个节点。`);
+      else void vscode.window.showInformationMessage(`订阅已更新：${result.count} 个节点。`);
+    } else if (selected.action === 'toggle') {
+      if (mihomo.isEnabled()) { await mihomo.disable(); void vscode.window.showInformationMessage('模型代理已停用。'); }
+      else { await mihomo.enable(); void vscode.window.showInformationMessage('模型代理已启用。'); }
+    } else if (selected.action === 'select') {
+      const { names, selected: current } = await mihomo.listNodes();
+      const node = await vscode.window.showQuickPick(names.map(name => ({ label: name, description: name === current ? '当前节点' : '' })), { title: '选择 ChatGPT 模型代理节点' });
+      if (node) { await mihomo.selectNode(node.label); void vscode.window.showInformationMessage(`当前节点：${node.label}`); }
+    } else if (selected.action === 'ip') {
+      const ip = await mihomo.exitIp(); void vscode.window.showInformationMessage(`模型代理出口 IP：${ip}`);
+    }
+  };
   let pendingLogin: Promise<boolean> | undefined;
   const signIn = (clientId?: string, intent: 'reconnect' | 'add' = 'reconnect'): Promise<boolean> => {
     if (pendingLogin) return pendingLogin;
@@ -110,7 +152,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ['chatgptSub.manage', manage], ['chatgptSub.signIn', () => signIn()], ['chatgptSub.signOut', signOut],
     ['chatgptSub.configureModel', () => provider.configureModel(lifetime.signal)],
     ['chatgptSub.refreshModels', async () => { provider.refresh(true); void vscode.window.showInformationMessage('Model cache and local retry pause cleared. Copilot will query the catalog again. This does not reset upstream usage limits.'); }],
-    ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))], ['chatgptSub.logs', async () => log.show(true)]
+    ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))], ['chatgptSub.logs', async () => log.show(true)],
+    ['chatgptSub.proxy', proxyMenu]
   ] as const) context.subscriptions.push(vscode.commands.registerCommand(command, guarded(action)));
   void accounts.synchronize(lifetime.signal).catch(report);
 }

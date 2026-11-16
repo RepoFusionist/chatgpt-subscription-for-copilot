@@ -47,10 +47,10 @@ export class OAuthClient {
     const payload = await this.http.form(TOKEN, new URLSearchParams({
       grant_type: 'authorization_code', client_id: clientId, code, code_verifier: attempt.verifier,
       redirect_uri: redirectUri, resource: API
-    }), signal);
+    }), signal, true);
     const tokens = this.parseTokens(payload);
     const identity = await this.oidc.verify(tokens.id, clientId, signal, { nonce: attempt.nonce,
-      ...(previous ? { subject: previous.subject } : {}) });
+      ...(previous ? { subject: previous.subject } : {}) }, true);
     return { ...identity, clientId, tokens };
   }
   async refresh(registration: Registration, signal: AbortSignal): Promise<Registration> {

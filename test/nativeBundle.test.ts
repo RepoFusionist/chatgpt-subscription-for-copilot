@@ -38,14 +38,14 @@ test('shipping CJS exposes math and manual Notebook guidance without live Notebo
   const context = {
     globalStorageUri: { scheme: 'vscode-userdata', authority: '', fsPath: directory }, subscriptions,
     secrets: { get: async () => raw, store: async (_key: string, value: string) => { raw = value; }, onDidChange: () => ({ dispose() {} }) },
-    globalState: { get: () => true, update: async () => undefined }
+    globalState: { get: (key: string) => key === 'previewConsent.v1' ? true : undefined, update: async () => undefined }
   } as unknown as vscode.ExtensionContext;
   const token: vscode.CancellationToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) };
   try {
     module.exports.activate(context);
     assert.equal(bodies.length, 0);
     assert.equal(api.registeredTools.size, 0); assert.equal(api.notebookStatusProviders.size, 0);
-    assert.equal(api.registeredCommands.size, 7); assert.ok(!api.registeredCommands.has('chatgptSub.toggleNotebookCellLock'));
+    assert.equal(api.registeredCommands.size, 8); assert.ok(api.registeredCommands.has('chatgptSub.proxy')); assert.ok(!api.registeredCommands.has('chatgptSub.toggleNotebookCellLock'));
     assert.doesNotMatch(source, /NotebookLiveEdit|registerNotebookTools|chatgptSub_notebook/);
     const provider = api.registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider; assert.ok(provider);
     const models = await provider.provideLanguageModelChatInformation({ silent: true }, token); assert.equal(models.length, 1);

@@ -1,5 +1,13 @@
 # ChatGPT Subscription for Copilot — Preview
 
+## Local Mihomo model proxy (Windows x64)
+
+This fork includes the Mihomo v1.19.34 Windows x64 compatible core. Run the `chatgptSub.proxy` command to import a HTTPS Clash YAML subscription or a local YAML file, enable the proxy, choose a node, or check its public exit IP. Subscription data must contain a `proxies` array; provider-only configurations and non-Clash subscription formats are not supported. Subscription downloads follow up to four HTTPS redirects. When enabled, a subscription update first uses the selected node and falls back once to a direct connection if that download fails; the UI reports successful fallback. Importing a new URL does not fall back. When disabled, the first URL import uses a direct connection, as shown in the import prompt; alternatively, bootstrap from a local file. System-wide TUN routing may still affect direct traffic.
+
+When enabled, Responses, model discovery, refresh, refresh-time identity verification and sign-out revocation use this proxy. The browser, loopback callback, initial code exchange and login-time identity verification retain their existing network routes. Local core control stays on loopback. OpenAI requests fail rather than silently connect directly if the proxy is unavailable. The core listens on loopback with its own controller secret; it does not change system proxy settings or enable TUN. A system-wide TUN from another application can still affect core traffic. The IP check contacts `https://api.ipify.org` through the chosen proxy and discloses the node's public IP to that service. Subscription URLs and source data are stored in VS Code SecretStorage; a generated configuration containing node credentials exists briefly in the extension's local storage while Mihomo starts.
+
+The bundled binary is from the official Mihomo v1.19.34 Windows amd64 compatible release. The downloaded release ZIP SHA-256 was `cd6738d4648cc1a5f48049a1343b697ab510889d648f045c5c780fc1ab443a79`. The Mihomo license and dependency notices are included in `resources/mihomo`.
+
 Use eligible **ChatGPT subscription models in GitHub Copilot Chat** through OpenAI's official **Sign in with ChatGPT (SIWC) subscription-sharing Preview**. No separate proxy server, API key, or borrowed Codex client identity is required.
 
 > **Unofficial extension by Lab 530. Not affiliated with OpenAI, GitHub, or Microsoft.** Subscription sharing is a Preview feature subject to account, workspace, region, model, and application eligibility. A ChatGPT subscription alone does not guarantee access. This extension does not bypass Copilot permissions or provide unlimited API usage.

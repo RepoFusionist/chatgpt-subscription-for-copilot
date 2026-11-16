@@ -12,7 +12,7 @@ test('manifest and shipped source withdraw the live Notebook tools, AI locks and
   const lock = JSON.parse(await readFile('package-lock.json', 'utf8'));
   assert.equal(manifest.version, lock.version); assert.equal(manifest.version, lock.packages[''].version);
   assert.equal(manifest.contributes.languageModelTools, undefined);
-  assert.equal(manifest.contributes.commands.length, 7);
+  assert.equal(manifest.contributes.commands.length, 8);
   assert.doesNotMatch(JSON.stringify(manifest.contributes), /notebook|cellLock/i);
   assert.doesNotMatch(await readFile('src/extension.ts', 'utf8'), /registerNotebookTools|notebookTools|NotebookCellStatus/);
   await assert.rejects(access('src/notebookTools.ts'), { code: 'ENOENT' });

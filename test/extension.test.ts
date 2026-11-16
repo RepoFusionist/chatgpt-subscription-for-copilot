@@ -24,7 +24,7 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
   try {
     activate(context);
     const provider = registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider;
-    assert.ok(provider); assert.equal(registeredCommands.size, 7);
+    assert.ok(provider); assert.equal(registeredCommands.size, 8); assert.ok(registeredCommands.has('chatgptSub.proxy'));
     assert.equal(registeredTools.size, 0); assert.equal(notebookStatusProviders.size, 0);
     const manifest = JSON.parse(await readFile('package.json', 'utf8')) as {
       publisher: string; name: string; contributes: { commands: { command: string }[]; languageModelChatProviders: { managementCommand: string }[] };

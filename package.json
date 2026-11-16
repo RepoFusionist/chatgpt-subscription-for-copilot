@@ -86,6 +86,11 @@
         "command": "chatgptSub.logs",
         "title": "Show Logs",
         "category": "ChatGPT Subscription"
+      },
+      {
+        "command": "chatgptSub.proxy",
+        "title": "管理模型代理（Mihomo）",
+        "category": "ChatGPT Subscription"
       }
     ],
     "configuration": {
@@ -163,7 +168,8 @@
   },
   "dependencies": {
     "jose": "6.2.15",
-    "proper-lockfile": "4.1.2"
+    "proper-lockfile": "4.1.2",
+    "undici": "7.30.1"
   },
   "overrides": {
     "@vscode/vsce": {

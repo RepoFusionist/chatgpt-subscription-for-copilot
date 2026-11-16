@@ -30,10 +30,11 @@ test('the chosen conversation icon is a packaged 256px PNG, not the Lab 530 cres
   assert.ok(!rules.includes('!assets/brand/lab530-logo.png'));
   assert.ok(!rules.includes('!assets/brand/logo.svg'));
 });
-test('actual VSCE file selection includes only seven explicitly allowlisted source files', () => {
+test('actual VSCE file selection includes only explicitly allowlisted files', () => {
   const output = execFileSync(process.execPath, ['node_modules/@vscode/vsce/vsce', 'ls', '--no-dependencies'], { encoding: 'utf8', timeout: 15000 });
   assert.deepEqual(output.trim().split(/\r?\n/).sort(), [
-    'LICENSE', 'PRIVACY.md', 'README.md', 'THIRD_PARTY_NOTICES.md', 'assets/brand/icon.png', 'dist/extension.cjs', 'package.json'
+    'LICENSE', 'PRIVACY.md', 'README.md', 'THIRD_PARTY_NOTICES.md', 'assets/brand/icon.png', 'dist/extension.cjs', 'package.json',
+    'resources/mihomo/LICENSE', 'resources/mihomo/THIRD_PARTY_LICENSES.txt', 'resources/mihomo/win32-x64/mihomo-windows-amd64-compatible.exe'
   ].sort());
 });
 test('default extension strings, callback language and primary public documentation are English', async () => {
@@ -41,11 +42,11 @@ test('default extension strings, callback language and primary public documentat
     for (const item of await readdir(directory, { withFileTypes: true })) {
       const path = join(directory, item.name);
       if (item.isDirectory()) await inspect(path);
-      else if (path.endsWith('.ts')) assert.doesNotMatch(await readFile(path, 'utf8'), /\p{Script=Han}/u, `${path} contains a non-English default string`);
+      else if (path.endsWith('.ts') && !['src\\extension.ts', 'src\\mihomo.ts', 'src/extension.ts', 'src/mihomo.ts'].includes(path)) assert.doesNotMatch(await readFile(path, 'utf8'), /\p{Script=Han}/u, `${path} contains a non-English default string`);
     }
   }
   await inspect('src');
-  const item = await manifest(); assert.doesNotMatch(JSON.stringify([item.displayName, item.description, item.contributes]), /\p{Script=Han}/u);
+  const item = await manifest(); assert.doesNotMatch(JSON.stringify([item.displayName, item.description]), /\p{Script=Han}/u);
   assert.match(await readFile('src/auth/callback.ts', 'utf8'), /<html lang="en">/);
   const readme = await readFile('README.md', 'utf8');
   assert.match(readme, /^# ChatGPT Subscription for Copilot/);

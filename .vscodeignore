@@ -6,3 +6,6 @@
 !dist/extension.cjs
 !PRIVACY.md
 !assets/brand/icon.png
+!resources/mihomo/LICENSE
+!resources/mihomo/THIRD_PARTY_LICENSES.txt
+!resources/mihomo/win32-x64/mihomo-windows-amd64-compatible.exe

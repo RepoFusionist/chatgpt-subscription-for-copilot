@@ -19,6 +19,24 @@ test('fetch always rejects redirects and supplies an AbortSignal', async () => {
   const http = new HttpClient(fake((_url, init) => { assert.equal(init.redirect, 'error'); assert.ok(init.signal); return json({ ok: true }); }));
   assert.deepEqual(await http.json(`${API}/models`, signal()), { ok: true });
 });
+test('all external non-login requests use the dedicated proxy transport', async () => {
+  const paths: string[] = [];
+  const http = new HttpClient(fake(() => { paths.push('direct'); return json({ ok: true }); }));
+  http.setModelFetch(fake(() => { paths.push('proxy'); return json({ ok: true }); }));
+  await http.json(`${API}/responses`, signal());
+  await http.form(TOKEN, new URLSearchParams({ grant_type: 'refresh_token' }), signal());
+  await http.form(TOKEN, new URLSearchParams({ grant_type: 'authorization_code' }), signal(), true);
+  await http.json(`${API}/models`, signal());
+  await http.json(`${ISSUER}/.well-known/openid-configuration`, signal());
+  await http.json(`${ISSUER}/.well-known/openid-configuration`, signal(), {}, true);
+  const jwks = http.trustMetadataUrl(`${ISSUER}/.well-known/jwks.json`);
+  await http.json(jwks, signal());
+  await http.revoke(http.trustMetadataUrl(`${ISSUER}/oauth/revoke`), new URLSearchParams(), signal());
+  assert.deepEqual(paths, ['proxy', 'proxy', 'direct', 'proxy', 'proxy', 'direct', 'proxy', 'proxy']);
+  http.setModelFetch(fake(() => { throw new Error('proxy unavailable'); }));
+  await assert.rejects(http.json(`${API}/responses`, signal()));
+  assert.deepEqual(paths, ['proxy', 'proxy', 'direct', 'proxy', 'proxy', 'direct', 'proxy', 'proxy']);
+});
 test('raw upstream error text and tokens never appear in user errors', async () => {
   const http = new HttpClient(fake(() => json({ error: { message: 'secret-token-and-prompt', code: 'invalid_grant' } }, 400, { 'x-request-id': 'req-123' })));
   await assert.rejects(http.json(TOKEN, signal()), (error: unknown) => {
