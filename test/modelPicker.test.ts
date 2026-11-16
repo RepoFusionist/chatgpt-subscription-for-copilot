@@ -35,6 +35,27 @@ test('native compatibility metadata does not opt into proposed VS Code APIs', ()
   assert.deepEqual(manifest.enabledApiProposals ?? [], []);
 });
 
+test('Fast is sent only when the user both shows and enables the option', async () => {
+  const f = fixture();
+  try {
+    const [info] = await f.provider.provideLanguageModelChatInformation({ silent: true }, token); assert.ok(info);
+    for (const [visible, fast] of [
+      [{ defaultValue: false, workspaceValue: true }, { globalValue: true }],
+      [{ globalValue: true }, { defaultValue: false, workspaceValue: true }],
+      [{ globalValue: true }, { globalValue: true }],
+      [{ globalValue: false }, { globalValue: true }]
+    ]) {
+      configuration.showFastOption = visible!;
+      configuration.fastMode = fast!;
+      await f.provider.provideLanguageModelChatResponse(info, [message()], options, { report() {} }, token);
+    }
+    assert.equal(f.bodies[0]!.service_tier, undefined);
+    assert.equal(f.bodies[1]!.service_tier, undefined);
+    assert.equal(f.bodies[2]!.service_tier, 'fast');
+    assert.equal(f.bodies[3]!.service_tier, undefined);
+  } finally { f.dispose(); }
+});
+
 test('one model exposes native thinking and context submenus, not synthetic detail labels or model variants', async () => {
   const f = fixture();
   try {
@@ -44,13 +65,34 @@ test('one model exposes native thinking and context submenus, not synthetic deta
     const info = models[0]!; const properties = info.configurationSchema.properties;
     const thinking = properties.reasoningEffort!; const context = properties.contextSize!;
     assert.equal(thinking.group, 'navigation'); assert.equal(thinking.default, 'high');
-    assert.deepEqual(thinking.enum, ['inherit', 'default', 'low', 'high']);
-    assert.equal(thinking.enumItemLabels[thinking.enum.indexOf('high')], 'High');
+    assert.deepEqual(thinking.enum, ['default', 'low', 'high']);
+    assert.equal(thinking.title, '思考强度'); assert.deepEqual(thinking.enumItemLabels, ['默认', '低', '高']);
     assert.equal(context.group, 'tokens'); assert.equal(context.type, 'number'); assert.equal(context.default, 1000000);
-    assert.equal(context.enumItemLabels[context.enum.indexOf(1000000)], 'Max 1M');
-    assert.ok(context.enum.includes(64000)); assert.ok(context.enum.every(value => typeof value === 'number' && value <= info.maxInputTokens));
+    assert.equal(context.title, '上下文窗口'); assert.deepEqual(context.enumItemLabels, ['默认 1M']);
+    assert.deepEqual(context.enum, [1000000]);
     assert.doesNotMatch(info.detail!, /thinking|context|High|Max 1M/);
     assert.equal(f.bodies.length, 0);
+  } finally { f.dispose(); }
+});
+
+test('context presets use each model default and only the maximum supported by that catalog', async () => {
+  const f = fixture({ models: [
+    { slug: 'gpt-5.6-luna', visibility: 'list', context_window: 272000, max_context_window: 1050000 },
+    { slug: 'gpt-6.1-sol', visibility: 'list', max_input_tokens: 1000000 },
+    { slug: 'gpt-6.1-terra', visibility: 'list', max_input_tokens: 272000, max_context_window: 1050000 }
+  ] });
+  try {
+    const [luna, sol, terra] = await f.provider.provideLanguageModelChatInformation({ silent: true }, token);
+    const context = (info: typeof luna) => info!.configurationSchema.properties.contextSize!;
+    assert.deepEqual(context(luna).enumItemLabels, ['默认 272K', '最大 1M']);
+    assert.equal(context(luna).default, 272000);
+    assert.deepEqual(context(sol).enumItemLabels, ['默认 500K', '最大 1M']);
+    assert.deepEqual(context(terra).enum, [272000]);
+    assert.equal(sol!.maxInputTokens, 1000000);
+    const oversized = message('x'.repeat(920000));
+    await assert.rejects(f.provider.provideLanguageModelChatResponse(luna!, [oversized], options, { report() {} }, token), /effective input context budget/);
+    await f.provider.provideLanguageModelChatResponse(luna!, [oversized], { ...options, modelConfiguration: { contextSize: 1000000 } }, { report() {} }, token);
+    assert.equal(f.bodies.length, 1);
   } finally { f.dispose(); }
 });
 
@@ -167,7 +209,7 @@ test('unsupported saved efforts are not silently substituted by a schema default
   try {
     configuration.reasoningEffort = { globalValue: 'max' };
     const [info] = await f.provider.provideLanguageModelChatInformation({ silent: true }, token); assert.ok(info);
-    assert.equal(info.configurationSchema.properties.reasoningEffort!.default, 'inherit');
+    assert.equal(info.configurationSchema.properties.reasoningEffort!.default, 'default');
     await assert.rejects(f.provider.provideLanguageModelChatResponse(info, [message()], {
       ...options, modelConfiguration: { reasoningEffort: 'inherit' }
     }, { report() {} }, token), /not declared support/);

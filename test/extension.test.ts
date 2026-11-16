@@ -8,7 +8,7 @@ import { activate } from '../src/extension';
 import { localStorageDirectory } from '../src/vscodeAdapter';
 import { parseVault } from '../src/auth/store';
 import type { ChatGPTProvider } from '../src/provider';
-import { registeredCommands, registeredProviders, registeredTools, notebookStatusProviders, browserOpens, configuration } from './vscode.mock';
+import { registeredCommands, registeredProviders, registeredTools, notebookStatusProviders, visibleStatusItems, browserOpens, configuration } from './vscode.mock';
 
 for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with ${scheme}: registers callable sign-in command without login or network`, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'chatgpt-sub-activation-'));
@@ -24,7 +24,7 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
   try {
     activate(context);
     const provider = registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider;
-    assert.ok(provider); assert.equal(registeredCommands.size, 8); assert.ok(registeredCommands.has('chatgptSub.proxy'));
+    assert.ok(provider); assert.ok(!registeredCommands.has('chatgptSub.weeklyQuota')); assert.ok(registeredCommands.has('chatgptSub.proxy'));
     assert.equal(registeredTools.size, 0); assert.equal(notebookStatusProviders.size, 0);
     const manifest = JSON.parse(await readFile('package.json', 'utf8')) as {
       publisher: string; name: string; contributes: { commands: { command: string }[]; languageModelChatProviders: { managementCommand: string }[] };
@@ -36,6 +36,17 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
     provider.refresh = () => { refreshes++; refresh(); };
     await vscode.workspace.getConfiguration('chatgptSub').update('modelOverrides', {}, vscode.ConfigurationTarget.Global);
     assert.ok(refreshes > 0, 'User configuration changes must refresh the model information');
+    assert.equal(visibleStatusItems.size, 0);
+    const toggleFast = registeredCommands.get('chatgptSub.toggleFast'); assert.ok(toggleFast);
+    await toggleFast();
+    assert.equal(configuration.fastMode?.globalValue, undefined);
+    const config = vscode.workspace.getConfiguration('chatgptSub');
+    await config.update('showFastOption', true, vscode.ConfigurationTarget.Global);
+    assert.match(visibleStatusItems.get('chatgptSub.fastMode')?.text ?? '', /Fast: 关/);
+    await toggleFast();
+    assert.match(visibleStatusItems.get('chatgptSub.fastMode')?.text ?? '', /Fast: 开/);
+    await config.update('showFastOption', false, vscode.ConfigurationTarget.Global);
+    assert.equal(visibleStatusItems.size, 0);
     const signIn = registeredCommands.get('chatgptSub.signIn'); assert.ok(signIn);
     await signIn(); // The progress mock cancels before authentication; no real browser or network.
     const token: vscode.CancellationToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) };
@@ -44,6 +55,8 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
   } finally {
     for (const sub of subscriptions) sub.dispose(); globalThis.fetch = originalFetch;
     delete configuration.modelOverrides;
+    delete configuration.fastMode;
+    delete configuration.showFastOption;
     await assert.rejects(access(join(directory, 'session.lock')));
     await rm(directory, { recursive: true, force: true });
   }

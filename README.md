@@ -106,6 +106,7 @@ All commands use the **ChatGPT Subscription** category.
 | Advanced Model Defaults | Set saved defaults or override missing input-limit metadata; ordinary chat controls are in the native model submenu |
 | Refresh Models | Clear the model catalog cache and local quota retry pause; does not reset upstream limits |
 | Open ChatGPT Usage | Open shared usage information |
+| Toggle Fast | Toggle Fast for subsequent ChatGPT subscription requests; visible when `chatgptSub.showFastOption` is enabled |
 | Show Logs | Show operation status, token counts, sanitized errors, HTTP status, allowlisted response type, and request ID |
 
 Registrations remain separate even when they use the same email address. **Continue with ChatGPT** reuses the active registration, or the sole retained registration after sign-out. If several registrations remain with no active selection, you choose which one to reconnect; cancelling does not create an App. To deliberately create another registration, choose **Manage Accounts → Add an account or workspace**. The very first login also creates a registration. Signing out retains the issued client ID and verified identity mapping for reconnecting. If remote revocation cannot be confirmed, the extension tells you to disconnect the application in ChatGPT Settings.
@@ -139,9 +140,11 @@ Settings are **machine-scoped**. The extension explicitly reads user/default val
 
 ### Thinking effort and context window
 
-In **Copilot Chat's model picker**, open the arrow/submenu beside a ChatGPT model. Choose **Thinking effort** and **Context window** there, without a command-palette detour or separate model variants. The native row shows the selected settings, for example **High · Max 1M** when the model's available input budget is 1M. Smaller budgets have their own native choices. No 1M capacity is fabricated when catalog metadata is missing.
+In **Copilot Chat's model picker**, open the arrow beside a ChatGPT model. **Context window** offers the model default and, when higher, the maximum supported input budget up to 1M. The account catalog supplies the default when available; otherwise GPT-5.6 defaults to 272K and GPT-6.1 to 500K, capped by the account catalog. Models without a higher declared limit do not offer 1M.
 
 The selected thinking level reaches OpenAI as `reasoning.effort`. The selected `contextSize` is a local Copilot input budget, never an unsupported Responses request field. Copilot uses its native context configuration for prompt budgeting; the provider also checks the current account catalog and saved input budget on every request, even when no native context selection is supplied, and rejects an estimated over-budget request without dropping history or tool results. Token counts remain estimates, not a guarantee against upstream context-limit errors.
+
+**Fast processing:** Set `chatgptSub.showFastOption` to show the Fast toggle in the status bar and account menu. Both this setting and Fast itself default to off. When the toggle is hidden, requests use the default service tier even if Fast was previously enabled. Availability depends on the model and subscription route.
 
 **Compatibility boundary:** registration and streaming use the stable `LanguageModelChatProvider` API and no proposed APIs are enabled. The inline controls themselves use DeepSeek-style **non-public** `configurationSchema`, `modelConfiguration`, and `configuration` compatibility metadata. These fields are not a GA API contract and may change across VS Code/Copilot versions. Model information is refreshed once after Copilot becomes active, observed passively without activating it or polling. Live UI acceptance in the user's editor remains pending.
 
@@ -204,7 +207,7 @@ Earlier builds treated the default **Continue with ChatGPT** command as an Add a
 
 ### A usage-limit error despite remaining ChatGPT usage
 
-`subscription_sharing_usage_limit_exceeded` is an upstream subscription-sharing error, not a local token-budget calculation. OpenAI's [official recovery guidance](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery) says an **app-specific limit can also apply**: this code does not establish that the entire ChatGPT plan is exhausted and does not identify a reset time. Check **Open ChatGPT Usage** and verify the active account/workspace; repeatedly signing in is not a quota reset. The extension cannot inspect your account's remaining limits or override an upstream rejection.
+`subscription_sharing_usage_limit_exceeded` is an upstream subscription-sharing error, not a local token-budget calculation. OpenAI's [official recovery guidance](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery) says an **app-specific limit can also apply**: this code does not establish that the entire ChatGPT plan is exhausted and does not identify a reset time. Check **Open ChatGPT Usage** and verify the active account/workspace. The public SIWC documentation does not provide an endpoint for this registration's remaining quota or reset time.
 
 The extension now classifies both standard streaming rate-limit errors and subscription-sharing quota errors as blocked requests and applies the local retry pause described above. It still returns a failure, never a fabricated successful answer. After checking access, **Refresh Models** clears only the local pause, not upstream limits. If Copilot displays `retried 5 times` or `502`, those are client-side wrapping/retry details and do not alone establish the HTTP status returned by OpenAI. Error logs retain the actual upstream HTTP status (including HTTP 429 failures that precede SSE); they do not replace it with Copilot's 502. Share only the sanitized **Responses transport** and error log lines, including an available request ID; no account access or real inference was used to verify the current fix.
 

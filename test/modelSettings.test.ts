@@ -84,7 +84,7 @@ test('saving and resetting one model preserves others and only updates user sett
   } finally { clear(); }
 });
 
-for (const action of ['Thinking effort', 'Context window', 'Reset model settings'] as const) {
+for (const action of ['思考强度', '上下文窗口', '重置模型设置'] as const) {
   test(`stable model configuration UI: ${action}`, async () => {
     const accounts = new AccountManager(new MemoryStore([registration()]), oauth()); let inference = 0;
     const http = new HttpClient(fake(url => {
@@ -111,9 +111,9 @@ for (const action of ['Thinking effort', 'Context window', 'Reset model settings
       configuration.modelOverrides = { globalValue: { 'test-model': { reasoningEffort: 'low', contextWindow: 32000 } } };
       await provider.configureModel(signal());
       const saved = modelOverride(model.id);
-      if (action === 'Thinking effort') assert.deepEqual(saved, { reasoningEffort: 'high', contextWindow: 32000 });
-      if (action === 'Context window') assert.deepEqual(saved, { reasoningEffort: 'low', contextWindow: 64000 });
-      if (action === 'Reset model settings') assert.deepEqual(saved, {});
+      if (action === '思考强度') assert.deepEqual(saved, { reasoningEffort: 'high', contextWindow: 32000 });
+      if (action === '上下文窗口') assert.deepEqual(saved, { reasoningEffort: 'low', contextWindow: 64000 });
+      if (action === '重置模型设置') assert.deepEqual(saved, {});
       assert.equal(inference, 0);
     } finally { provider.dispose(); accounts.dispose(); window.showQuickPick = original.pick; window.showInputBox = original.input; clear(); }
   });

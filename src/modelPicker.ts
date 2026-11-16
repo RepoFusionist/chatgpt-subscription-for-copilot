@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { AppError, record } from './core';
-import { EFFORTS, type ChatModel, type Effort } from './chat/models';
+import { type ChatModel, type Effort } from './chat/models';
 import { inputBudget, modelOverride } from './modelSettings';
 
 // Compatibility metadata consumed by Copilot, not a public VS Code API contract.
@@ -17,35 +17,43 @@ export type NativeResponseOptions = vscode.ProvideLanguageModelChatResponseOptio
   readonly modelConfiguration?: Readonly<Record<string, unknown>>;
   readonly configuration?: Readonly<Record<string, unknown>>;
 };
-const EFFORT_LABELS: Record<Effort | 'default', string> = {
-  default: 'Default', none: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra High', max: 'Max'
+export const EFFORT_LABELS: Record<Effort | 'default', string> = {
+  default: '默认', none: '关闭', minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '极高', max: '最高', ultra: '极致'
 };
 const compact = (value: number) => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+const MAX_PICKER_CONTEXT = 1_000_000;
+
+export function contextBudgets(model: ChatModel, override = modelOverride(model.id)) {
+  const max = Math.min(inputBudget(model, override), MAX_PICKER_CONTEXT);
+  const preset = /^gpt-6\.1(?:-|$)/i.test(model.id) ? 500_000
+    : /^gpt-5\.6(?:-|$)/i.test(model.id) ? 272_000 : undefined;
+  const defaultBudget = Math.min(max, override.contextWindow ?? model.defaultInputTokens ?? preset ?? max);
+  return { max, defaultBudget };
+}
 
 export function pickerSchema(model: ChatModel, globalEffort: Effort | undefined): NativeModelInformation['configurationSchema'] {
   const override = modelOverride(model.id);
   const effort = override.reasoningEffort ?? globalEffort ?? 'default';
-  const levels = model.efforts.length ? model.efforts : [...EFFORTS];
-  const values = ['inherit', 'default', ...levels];
+  const requested: Effort[] = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+  const levels = model.efforts.length ? requested.filter(value => model.efforts.includes(value)) : requested;
+  const values = ['default', ...levels];
   const properties: Record<string, PickerProperty> = {
     reasoningEffort: {
-      type: 'string', title: 'Thinking effort', enum: values,
-      enumItemLabels: ['Use saved setting', 'Default', ...levels.map(value => EFFORT_LABELS[value])],
-      enumDescriptions: ['Use the extension per-model or global preference.', 'Let OpenAI choose the reasoning effort.',
-        ...levels.map(() => model.efforts.length ? 'Supported by this model according to the account catalog.' : 'Capabilities were not reported; OpenAI may reject an explicit effort.')],
-      // An unsupported saved effort must still fail closed, not silently become a different effort.
-      default: values.includes(effort) ? effort : 'inherit', group: 'navigation'
+      type: 'string', title: '思考强度', enum: values,
+      enumItemLabels: ['默认', ...levels.map(value => EFFORT_LABELS[value])],
+      enumDescriptions: ['由模型选择思考强度。',
+        ...levels.map(() => model.efforts.length ? '账户目录显示此模型支持该档位。' : '目录未声明支持的档位，服务端可能拒绝此设置。')],
+      default: values.includes(effort) ? effort : 'default', group: 'navigation'
     }
   };
-  const ceiling = inputBudget(model, override);
-  if (ceiling >= 1024) {
-    const sizes = [...new Set([1024, 16000, 32000, 64000, 128000, 256000, 512000, 1000000, 2000000, ceiling])]
-      .filter(value => value <= ceiling).sort((a, b) => a - b);
+  const { max, defaultBudget } = contextBudgets(model, override);
+  if (defaultBudget >= 1024) {
+    const sizes = defaultBudget === max ? [defaultBudget] : [defaultBudget, max];
     properties.contextSize = {
-      type: 'number', title: 'Context window', enum: sizes,
-      enumItemLabels: sizes.map(value => `${value === ceiling ? 'Max ' : ''}${compact(value)}`),
-      enumDescriptions: sizes.map(value => `${value.toLocaleString('en-US')} input tokens for Copilot. ${model.estimatedInputLimit ? 'The catalog input limit is estimated or user-supplied; this does not increase server capacity.' : 'The catalog input limit is respected.'}`),
-      default: ceiling, group: 'tokens'
+      type: 'number', title: '上下文窗口', enum: sizes,
+      enumItemLabels: sizes.map((value, index) => `${index === 0 ? '默认' : '最大'} ${compact(value)}`),
+      enumDescriptions: sizes.map(value => `${value.toLocaleString('en-US')} 个输入 token。${model.estimatedInputLimit ? '此额度是估算或用户设定值。' : ''}`),
+      default: defaultBudget, group: 'tokens'
     };
   }
   return { properties };
@@ -65,10 +73,10 @@ export function pickerEffort(options: NativeResponseOptions): unknown {
   return value === 'inherit' ? undefined : value;
 }
 export function pickerInputBudget(model: ChatModel, options: NativeResponseOptions): number {
-  const ceiling = inputBudget(model);
+  const { max, defaultBudget } = contextBudgets(model);
   const value = pickerOption(options, 'contextSize');
-  if (value === undefined) return ceiling;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1024 || value > ceiling) {
+  if (value === undefined) return defaultBudget;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1024 || value > max) {
     throw new AppError('The selected context budget is invalid or exceeds the current model input limit. Re-select a context size in the model menu.');
   }
   return value;

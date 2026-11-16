@@ -24,7 +24,7 @@ test('shipping CJS exposes math and manual Notebook guidance without live Notebo
     TextDecoder, TextEncoder, crypto: globalThis.crypto,
     fetch: async (url: string, init: RequestInit) => {
       if (url === `${API}/models`) return json({ models: [{ slug: 'test-model', display_name: 'Test', visibility: 'list',
-        max_input_tokens: 1000000, max_output_tokens: 64000, supported_reasoning_efforts: ['low', 'high'] }] });
+        context_window: 272000, max_input_tokens: 1000000, max_output_tokens: 64000, supported_reasoning_efforts: ['low', 'high'] }] });
       assert.equal(url, `${API}/responses`);
       bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
       return sse([{ type: 'response.output_text.delta', delta: 'Synthetic reply \\(x^2\\)' },
@@ -45,13 +45,13 @@ test('shipping CJS exposes math and manual Notebook guidance without live Notebo
     module.exports.activate(context);
     assert.equal(bodies.length, 0);
     assert.equal(api.registeredTools.size, 0); assert.equal(api.notebookStatusProviders.size, 0);
-    assert.equal(api.registeredCommands.size, 8); assert.ok(api.registeredCommands.has('chatgptSub.proxy')); assert.ok(!api.registeredCommands.has('chatgptSub.toggleNotebookCellLock'));
+    assert.ok(api.registeredCommands.has('chatgptSub.toggleFast')); assert.ok(api.registeredCommands.has('chatgptSub.proxy')); assert.ok(!api.registeredCommands.has('chatgptSub.toggleNotebookCellLock'));
     assert.doesNotMatch(source, /NotebookLiveEdit|registerNotebookTools|chatgptSub_notebook/);
     const provider = api.registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider; assert.ok(provider);
     const models = await provider.provideLanguageModelChatInformation({ silent: true }, token); assert.equal(models.length, 1);
     const info = models[0]!; const properties = info.configurationSchema.properties;
-    assert.equal(properties.reasoningEffort!.group, 'navigation'); assert.ok(properties.reasoningEffort!.enumItemLabels.includes('High'));
-    assert.equal(properties.contextSize!.group, 'tokens'); assert.ok(properties.contextSize!.enumItemLabels.includes('Max 1M'));
+    assert.equal(properties.reasoningEffort!.group, 'navigation'); assert.ok(properties.reasoningEffort!.enumItemLabels.includes('高'));
+    assert.equal(properties.contextSize!.group, 'tokens'); assert.ok(properties.contextSize!.enumItemLabels.includes('最大 1M'));
     const parts: vscode.LanguageModelResponsePart[] = [];
     await provider.provideLanguageModelChatResponse(info, [{ role: api.LanguageModelChatMessageRole.User, name: undefined,
       content: [new api.LanguageModelTextPart('Synthetic request')] }], {

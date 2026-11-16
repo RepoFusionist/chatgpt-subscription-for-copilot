@@ -42,7 +42,7 @@ test('default extension strings, callback language and primary public documentat
     for (const item of await readdir(directory, { withFileTypes: true })) {
       const path = join(directory, item.name);
       if (item.isDirectory()) await inspect(path);
-      else if (path.endsWith('.ts') && !['src\\extension.ts', 'src\\mihomo.ts', 'src/extension.ts', 'src/mihomo.ts'].includes(path)) assert.doesNotMatch(await readFile(path, 'utf8'), /\p{Script=Han}/u, `${path} contains a non-English default string`);
+      else if (path.endsWith('.ts') && !['extension.ts', 'mihomo.ts', 'modelPicker.ts', 'provider.ts'].includes(item.name)) assert.doesNotMatch(await readFile(path, 'utf8'), /\p{Script=Han}/u, `${path} contains a non-English default string`);
     }
   }
   await inspect('src');

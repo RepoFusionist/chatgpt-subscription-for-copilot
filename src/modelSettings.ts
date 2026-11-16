@@ -8,6 +8,8 @@ export function userSetting(key: string): unknown {
   const value = vscode.workspace.getConfiguration('chatgptSub').inspect<unknown>(key);
   return value?.globalValue !== undefined ? value.globalValue : value?.defaultValue;
 }
+export const showFastOption = () => userSetting('showFastOption') === true;
+export const fastEnabled = () => showFastOption() && userSetting('fastMode') === true;
 function overrides(): Record<string, unknown> {
   const value = userSetting('modelOverrides');
   if (value === undefined) return {};

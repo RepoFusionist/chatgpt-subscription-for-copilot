@@ -69,7 +69,7 @@
       },
       {
         "command": "chatgptSub.configureModel",
-        "title": "Advanced Model Defaults",
+        "title": "模型默认设置",
         "category": "ChatGPT Subscription"
       },
       {
@@ -83,6 +83,11 @@
         "category": "ChatGPT Subscription"
       },
       {
+        "command": "chatgptSub.toggleFast",
+        "title": "切换 Fast 加速",
+        "category": "ChatGPT Subscription"
+      },
+      {
         "command": "chatgptSub.logs",
         "title": "Show Logs",
         "category": "ChatGPT Subscription"
@@ -93,9 +98,31 @@
         "category": "ChatGPT Subscription"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "chatgptSub.toggleFast",
+          "when": "config.chatgptSub.showFastOption"
+        }
+      ]
+    },
     "configuration": {
       "title": "ChatGPT Subscription (Preview)",
       "properties": {
+        "chatgptSub.showFastOption": {
+          "type": "boolean",
+          "scope": "machine",
+          "default": false,
+          "title": "显示 Fast 加速选项",
+          "description": "在状态栏和账户菜单显示 Fast 开关。关闭此项时，所有请求均关闭 Fast。"
+        },
+        "chatgptSub.fastMode": {
+          "type": "boolean",
+          "scope": "machine",
+          "default": false,
+          "title": "启用 Fast 加速",
+          "description": "为 ChatGPT 订阅模型请求 Fast 加速。仅在启用「显示 Fast 加速选项」时生效。"
+        },
         "chatgptSub.reasoningEffort": {
           "type": "string",
           "scope": "machine",
@@ -108,7 +135,8 @@
             "medium",
             "high",
             "xhigh",
-            "max"
+            "max",
+            "ultra"
           ],
           "description": "Reasoning effort. Default lets the server choose; unsupported values are rejected, not silently substituted."
         },
@@ -131,7 +159,8 @@
                   "medium",
                   "high",
                   "xhigh",
-                  "max"
+                  "max",
+                  "ultra"
                 ]
               },
               "contextWindow": {

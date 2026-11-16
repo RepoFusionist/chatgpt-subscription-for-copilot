@@ -8,12 +8,30 @@ import { ChatGPTProvider, VENDOR } from './provider';
 import { refreshNativePicker } from './modelPicker';
 import { cancellation, localStorageDirectory } from './vscodeAdapter';
 import { MihomoManager } from './mihomo';
+import { fastEnabled, showFastOption } from './modelSettings';
 
 export function activate(context: vscode.ExtensionContext): void {
   const storageDirectory = localStorageDirectory(context.globalStorageUri, vscode.env.uiKind);
   const log = vscode.window.createOutputChannel('ChatGPT Subscription', { log: true });
   const lifetime = new AbortController();
   const http = new HttpClient();
+  const fastStatus = vscode.window.createStatusBarItem('chatgptSub.fastMode', vscode.StatusBarAlignment.Right, 11);
+  fastStatus.name = 'ChatGPT Fast 加速';
+  fastStatus.command = 'chatgptSub.toggleFast';
+  const renderFast = () => {
+    if (!showFastOption()) { fastStatus.hide(); return; }
+    const enabled = fastEnabled();
+    fastStatus.text = `$(zap) Fast: ${enabled ? '开' : '关'}`;
+    fastStatus.tooltip = `点击${enabled ? '关闭' : '开启'} ChatGPT 订阅模型的 Fast 加速。`;
+    fastStatus.show();
+  };
+  const toggleFast = async () => {
+    if (showFastOption()) await vscode.workspace.getConfiguration('chatgptSub')
+      .update('fastMode', !fastEnabled(), vscode.ConfigurationTarget.Global);
+  };
+  renderFast();
+  context.subscriptions.push(fastStatus);
+
   const mihomo = new MihomoManager(context, http);
   context.subscriptions.push(mihomo);
   const accounts = new AccountManager(new LockedAccountStore(context.secrets, storageDirectory), new OAuthClient(http));
@@ -114,7 +132,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const provider = new ChatGPTProvider(accounts, http, clientId => signIn(clientId), log);
   context.subscriptions.push(provider, accounts.onChange(() => provider.refresh()),
-    vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('chatgptSub')) provider.refresh(); }),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (['reasoningEffort', 'modelOverrides'].some(key => event.affectsConfiguration('chatgptSub.' + key))) provider.refresh();
+      if (event.affectsConfiguration('chatgptSub.showFastOption') || event.affectsConfiguration('chatgptSub.fastMode')) renderFast();
+    }),
     vscode.lm.registerLanguageModelChatProvider(VENDOR, provider),
     context.secrets.onDidChange(event => {
       if (event.key === SECRET_KEY) void accounts.synchronize(lifetime.signal).catch(report);
@@ -141,7 +162,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }));
     choices.push({ label: '$(add) Continue with ChatGPT — Add an account or workspace', run: () => signIn(undefined, 'add') },
-      { label: '$(settings-gear) Advanced Model Defaults', run: () => provider.configureModel(lifetime.signal) },
+      { label: '$(settings-gear) 模型默认设置', run: () => provider.configureModel(lifetime.signal) },
+      ...(showFastOption() ? [{ label: `$(zap) Fast 加速：${fastEnabled() ? '开' : '关'}`, run: toggleFast }] : []),
       { label: '$(refresh) Refresh Models', run: async () => provider.refresh(true) },
       { label: '$(link-external) ChatGPT Usage', run: () => vscode.env.openExternal(vscode.Uri.parse(USAGE)) });
     if (snapshot.active) choices.push({ label: '$(sign-out) Sign Out of Active Account', run: signOut });
@@ -152,7 +174,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ['chatgptSub.manage', manage], ['chatgptSub.signIn', () => signIn()], ['chatgptSub.signOut', signOut],
     ['chatgptSub.configureModel', () => provider.configureModel(lifetime.signal)],
     ['chatgptSub.refreshModels', async () => { provider.refresh(true); void vscode.window.showInformationMessage('Model cache and local retry pause cleared. Copilot will query the catalog again. This does not reset upstream usage limits.'); }],
-    ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))], ['chatgptSub.logs', async () => log.show(true)],
+    ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))],
+    ['chatgptSub.toggleFast', toggleFast],
+    ['chatgptSub.logs', async () => log.show(true)],
     ['chatgptSub.proxy', proxyMenu]
   ] as const) context.subscriptions.push(vscode.commands.registerCommand(command, guarded(action)));
   void accounts.synchronize(lifetime.signal).catch(report);

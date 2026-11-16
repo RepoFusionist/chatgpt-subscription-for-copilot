@@ -19,14 +19,15 @@ export class LanguageModelError extends Error {
 }
 export const configuration: Record<string, { globalValue?: unknown; defaultValue?: unknown; workspaceValue?: unknown }> = {};
 export enum ConfigurationTarget { Global = 1, Workspace = 2, WorkspaceFolder = 3 }
+export enum StatusBarAlignment { Left = 1, Right = 2 }
 const configurationChanges = new EventEmitter<{ affectsConfiguration(section: string): boolean }>();
 export const workspace = {
   onDidChangeConfiguration: configurationChanges.event,
-  getConfiguration: () => ({ inspect: (key: string) => configuration[key],
+  getConfiguration: (namespace = 'chatgptSub') => ({ inspect: (key: string) => configuration[key],
     update: async (key: string, value: unknown, target: ConfigurationTarget) => {
       if (target !== ConfigurationTarget.Global) throw new Error('Expected user settings only');
       configuration[key] = { ...configuration[key], globalValue: value };
-      configurationChanges.fire({ affectsConfiguration: section => section === 'chatgptSub' });
+      configurationChanges.fire({ affectsConfiguration: section => section === namespace || section === namespace + '.' + key });
     }
   })
 };
@@ -49,7 +50,11 @@ export const lm = { registerTool: <T>(name: string, tool: VSCode.LanguageModelTo
 }, onDidChangeChatModels: nativeModelChanges.event, registerLanguageModelChatProvider: (name: string, provider: unknown) => {
   registeredProviders.set(name, provider); return { dispose: () => { registeredProviders.delete(name); } };
 } };
+export const visibleStatusItems = new Map<string, { text: string }>();
 export const window = {
+  createStatusBarItem: (id: string) => ({ name: '', text: '', tooltip: '', command: '',
+    show() { visibleStatusItems.set(id, this); }, hide() { visibleStatusItems.delete(id); },
+    dispose() { visibleStatusItems.delete(id); } }),
   createOutputChannel: () => ({ info() {}, warn() {}, show() {}, dispose() {} }),
   showErrorMessage: async (..._args: unknown[]): Promise<unknown> => undefined,
   showWarningMessage: async (..._args: unknown[]): Promise<unknown> => undefined,
